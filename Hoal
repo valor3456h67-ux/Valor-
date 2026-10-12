@@ -1,0 +1,569 @@
+--[[
+    ╔══════════════════════════════════════╗
+    ║        🦁 LEÓN DRIP MENU 🦁          ║
+    ║      + Aimbot Suave (Animales)       ║
+    ║      + Auto Shot (Head Lock)         ║
+    ║      + Shaders Rosados               ║
+    ║      + FOV Arreglado                 ║
+    ╚══════════════════════════════════════╝
+--]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Estado global
+_G.LeonDrip = _G.LeonDrip or {}
+local State = _G.LeonDrip
+
+State.infJumpEnabled = State.infJumpEnabled or false
+State.noclipEnabled = State.noclipEnabled or false
+State.aimbotEnabled = State.aimbotEnabled or false
+State.autoShotEnabled = State.autoShotEnabled or false
+State.speedEnabled = State.speedEnabled or false
+State.flyEnabled = State.flyEnabled or false
+State.shaderEnabled = State.shaderEnabled or false
+State.speedValue = 30
+State.flySpeed = 50
+State.aimbotSmooth = 0.15
+
+-- FOV
+State.baseFOV = State.baseFOV or 70
+State.fovPercent = State.fovPercent or 0
+State.fovOverride = true
+
+-- Limpiar GUIs previas
+for _, gui in pairs(game.CoreGui:GetChildren()) do
+    if gui.Name == "LeonDripMenu" or gui.Name == "LeonEmoji" then
+        gui:Destroy()
+    end
+end
+
+-- ═══════════════════════════════════════
+-- ANIMALES (Zoo or Oof 2 y otros)
+-- ═══════════════════════════════════════
+local ANIMAL_NAMES = {
+    "Animal", "Dog", "Cat", "Lion", "Tiger", "Bear", "Wolf", "Fox",
+    "Elephant", "Giraffe", "Zebra", "Monkey", "Rabbit", "Deer", "Horse",
+    "Cow", "Pig", "Sheep", "Chicken", "Duck", "Penguin", "Panda",
+    "Eagle", "Hawk", "Owl", "Snake", "Crocodile", "Shark", "Whale",
+    "Frog", "Turtle", "Dragon", "Dino", "Raptor", "T-Rex", "Pet"
+}
+
+local function isAnimal(instance)
+    if not instance then return false end
+    local name = instance.Name
+    for _, animalName in ipairs(ANIMAL_NAMES) do
+        if string.find(string.lower(name), string.lower(animalName)) then
+            return true
+        end
+    end
+    return false
+end
+
+local function getClosestAnimalHead()
+    local closest = nil
+    local shortest = math.huge
+    local myPos = Camera.CFrame.Position
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            if isAnimal(player.Character.Name) or isAnimal(player.Name) then
+                local head = player.Character:FindFirstChild("Head")
+                if head then
+                    local dist = (head.Position - myPos).Magnitude
+                    if dist < shortest then
+                        shortest = dist
+                        closest = head
+                    end
+                end
+            end
+        end
+    end
+
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and isAnimal(obj) then
+            local head = obj:FindFirstChild("Head")
+                         or obj:FindFirstChild("head")
+                         or obj:FindFirstChildWhichIsA("BasePart")
+            if head and head:IsA("BasePart") then
+                local dist = (head.Position - myPos).Magnitude
+                if dist < shortest then
+                    shortest = dist
+                    closest = head
+                end
+            end
+        end
+    end
+
+    return closest
+end
+
+-- ═══════════════════════════════════════
+-- SHADERS ROSADOS
+-- ═══════════════════════════════════════
+local function enablePinkShaders()
+    for _, v in pairs(Lighting:GetChildren()) do
+        if v.Name:sub(1, 12) == "PinkShader__" then v:Destroy() end
+    end
+
+    local cc = Instance.new("ColorCorrectionEffect")
+    cc.Name = "PinkShader__ColorCorrection"
+    cc.Brightness = 0.05
+    cc.Contrast = 0.15
+    cc.Saturation = 0.35
+    cc.TintColor = Color3.fromRGB(255, 180, 220)
+    cc.Parent = Lighting
+
+    local bloom = Instance.new("BloomEffect")
+    bloom.Name = "PinkShader__Bloom"
+    bloom.Intensity = 0.8
+    bloom.Size = 24
+    bloom.Threshold = 0.9
+    bloom.Parent = Lighting
+
+    local atmo = Instance.new("Atmosphere")
+    atmo.Name = "PinkShader__Atmosphere"
+    atmo.Density = 0.35
+    atmo.Offset = 0.1
+    atmo.Color = Color3.fromRGB(255, 200, 230)
+    atmo.Decay = Color3.fromRGB(255, 150, 200)
+    atmo.Glare = 0.2
+    atmo.Haze = 1.5
+    atmo.Parent = Lighting
+
+    local sr = Instance.new("SunRaysEffect")
+    sr.Name = "PinkShader__SunRays"
+    sr.Intensity = 0.15
+    sr.Spread = 0.8
+    sr.Parent = Lighting
+end
+
+local function disablePinkShaders()
+    for _, v in pairs(Lighting:GetChildren()) do
+        if v.Name:sub(1, 12) == "PinkShader__" then v:Destroy() end
+    end
+end
+
+-- ═══════════════════════════════════════
+-- FOV: aplicar y forzar
+-- ═══════════════════════════════════════
+local function applyFOV()
+    local newFOV = State.baseFOV * (1 + State.fovPercent / 100)
+    Camera.FieldOfView = newFOV
+    return newFOV
+end
+
+if not State.fovConn then
+    State.fovConn = RunService.RenderStepped:Connect(function()
+        if State.fovOverride then
+            local targetFOV = State.baseFOV * (1 + State.fovPercent / 100)
+            if math.abs(Camera.FieldOfView - targetFOV) > 0.1 then
+                Camera.FieldOfView = targetFOV
+            end
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════
+-- MENÚ
+-- ═══════════════════════════════════════
+local function createMenu()
+    if game.CoreGui:FindFirstChild("LeonDripMenu") then return end
+    local oldEmoji = game.CoreGui:FindFirstChild("LeonEmoji")
+    if oldEmoji then oldEmoji:Destroy() end
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "LeonDripMenu"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.Parent = game.CoreGui
+
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 240, 0, 460)
+    MainFrame.Position = UDim2.new(0.5, -120, 0.5, -230)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(0, 170, 60)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    MainFrame.Parent = ScreenGui
+
+    local MainCorner = Instance.new("UICorner")
+    MainCorner.CornerRadius = UDim.new(0, 10)
+    MainCorner.Parent = MainFrame
+
+    local MainStroke = Instance.new("UIStroke")
+    MainStroke.Color = Color3.fromRGB(0, 255, 100)
+    MainStroke.Thickness = 2
+    MainStroke.Parent = MainFrame
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 40)
+    Title.BackgroundColor3 = Color3.fromRGB(0, 130, 45)
+    Title.BorderSizePixel = 0
+    Title.Text = "🦁 LEÓN DRIP 🦁"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextScaled = true
+    Title.Font = Enum.Font.GothamBold
+    Title.Parent = MainFrame
+
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 10)
+    TitleCorner.Parent = Title
+
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Size = UDim2.new(0, 25, 0, 25)
+    CloseButton.Position = UDim2.new(1, -30, 0, 5)
+    CloseButton.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Text = "X"
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.TextScaled = true
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.Parent = MainFrame
+
+    local CloseCorner = Instance.new("UICorner")
+    CloseCorner.CornerRadius = UDim.new(0, 5)
+    CloseCorner.Parent = CloseButton
+
+    local ButtonHolder = Instance.new("ScrollingFrame")
+    ButtonHolder.Size = UDim2.new(1, -20, 1, -55)
+    ButtonHolder.Position = UDim2.new(0, 10, 0, 45)
+    ButtonHolder.BackgroundTransparency = 1
+    ButtonHolder.BorderSizePixel = 0
+    ButtonHolder.ScrollBarThickness = 4
+    ButtonHolder.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 100)
+    ButtonHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+    ButtonHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    ButtonHolder.Parent = MainFrame
+
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.Padding = UDim.new(0, 6)
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Parent = ButtonHolder
+
+    local function createButton(text, order)
+        local Button = Instance.new("TextButton")
+        Button.Size = UDim2.new(1, -8, 0, 32)
+        Button.BackgroundColor3 = Color3.fromRGB(0, 100, 40)
+        Button.BorderSizePixel = 0
+        Button.Text = text
+        Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Button.TextSize = 14
+        Button.Font = Enum.Font.GothamSemibold
+        Button.LayoutOrder = order
+        Button.Parent = ButtonHolder
+
+        local Corner = Instance.new("UICorner")
+        Corner.CornerRadius = UDim.new(0, 6)
+        Corner.Parent = Button
+
+        local Stroke = Instance.new("UIStroke")
+        Stroke.Color = Color3.fromRGB(0, 255, 100)
+        Stroke.Thickness = 1
+        Stroke.Parent = Button
+
+        return Button
+    end
+
+    local function paint(btn, on)
+        btn.BackgroundColor3 = on and Color3.fromRGB(0, 200, 80) or Color3.fromRGB(0, 100, 40)
+    end
+
+    -- Inf Jump
+    local InfJumpBtn = createButton("Inf Jump: " .. (State.infJumpEnabled and "ON" or "OFF"), 1)
+    paint(InfJumpBtn, State.infJumpEnabled)
+    InfJumpBtn.MouseButton1Click:Connect(function()
+        State.infJumpEnabled = not State.infJumpEnabled
+        InfJumpBtn.Text = "Inf Jump: " .. (State.infJumpEnabled and "ON" or "OFF")
+        paint(InfJumpBtn, State.infJumpEnabled)
+    end)
+
+    -- Noclip
+    local NoclipBtn = createButton("Noclip: " .. (State.noclipEnabled and "ON" or "OFF"), 2)
+    paint(NoclipBtn, State.noclipEnabled)
+    NoclipBtn.MouseButton1Click:Connect(function()
+        State.noclipEnabled = not State.noclipEnabled
+        NoclipBtn.Text = "Noclip: " .. (State.noclipEnabled and "ON" or "OFF")
+        paint(NoclipBtn, State.noclipEnabled)
+    end)
+
+    -- Aimbot Animal
+    local AimbotBtn = createButton("🎯 Aimbot Animal: " .. (State.aimbotEnabled and "ON" or "OFF"), 3)
+    paint(AimbotBtn, State.aimbotEnabled)
+    AimbotBtn.MouseButton1Click:Connect(function()
+        State.aimbotEnabled = not State.aimbotEnabled
+        AimbotBtn.Text = "🎯 Aimbot Animal: " .. (State.aimbotEnabled and "ON" or "OFF")
+        paint(AimbotBtn, State.aimbotEnabled)
+    end)
+
+    -- Auto Shot
+    local AutoShotBtn = createButton("🔫 Auto Shot: " .. (State.autoShotEnabled and "ON" or "OFF"), 4)
+    paint(AutoShotBtn, State.autoShotEnabled)
+    AutoShotBtn.MouseButton1Click:Connect(function()
+        State.autoShotEnabled = not State.autoShotEnabled
+        AutoShotBtn.Text = "🔫 Auto Shot: " .. (State.autoShotEnabled and "ON" or "OFF")
+        paint(AutoShotBtn, State.autoShotEnabled)
+    end)
+
+    -- Speed
+    local SpeedBtn = createButton("Speed 30: " .. (State.speedEnabled and "ON" or "OFF"), 5)
+    paint(SpeedBtn, State.speedEnabled)
+    SpeedBtn.MouseButton1Click:Connect(function()
+        State.speedEnabled = not State.speedEnabled
+        SpeedBtn.Text = "Speed 30: " .. (State.speedEnabled and "ON" or "OFF")
+        paint(SpeedBtn, State.speedEnabled)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChildOfClass("Humanoid") then
+            char:FindFirstChildOfClass("Humanoid").WalkSpeed = State.speedEnabled and State.speedValue or 16
+        end
+    end)
+
+    -- Fly
+    local FlyBtn = createButton("Fly: " .. (State.flyEnabled and "ON" or "OFF"), 6)
+    paint(FlyBtn, State.flyEnabled)
+    FlyBtn.MouseButton1Click:Connect(function()
+        State.flyEnabled = not State.flyEnabled
+        FlyBtn.Text = "Fly: " .. (State.flyEnabled and "ON" or "OFF")
+        paint(FlyBtn, State.flyEnabled)
+        if State.toggleFly then State.toggleFly() end
+    end)
+
+    -- Shaders Rosados
+    local ShaderBtn = createButton("🌸 Shaders Rosados: " .. (State.shaderEnabled and "ON" or "OFF"), 7)
+    paint(ShaderBtn, State.shaderEnabled)
+    ShaderBtn.MouseButton1Click:Connect(function()
+        State.shaderEnabled = not State.shaderEnabled
+        ShaderBtn.Text = "🌸 Shaders Rosados: " .. (State.shaderEnabled and "ON" or "OFF")
+        paint(ShaderBtn, State.shaderEnabled)
+        if State.shaderEnabled then
+            enablePinkShaders()
+        else
+            disablePinkShaders()
+        end
+    end)
+
+    -- FOV Label
+    local FOVLabel = Instance.new("TextLabel")
+    FOVLabel.Size = UDim2.new(1, -8, 0, 22)
+    FOVLabel.BackgroundTransparency = 1
+    FOVLabel.Text = "FOV: " .. math.floor(Camera.FieldOfView) .. "  (+" .. State.fovPercent .. "%)"
+    FOVLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    FOVLabel.TextSize = 13
+    FOVLabel.Font = Enum.Font.GothamBold
+    FOVLabel.LayoutOrder = 8
+    FOVLabel.Parent = ButtonHolder
+
+    local function updateFOVLabel()
+        FOVLabel.Text = "FOV: " .. math.floor(Camera.FieldOfView) .. "  (+" .. State.fovPercent .. "%)"
+    end
+
+    -- FOV +
+    local FOVUpBtn = createButton("FOV  +2%  ➕", 9)
+    FOVUpBtn.MouseButton1Click:Connect(function()
+        State.fovPercent = State.fovPercent + 2
+        applyFOV()
+        updateFOVLabel()
+    end)
+
+    -- FOV -
+    local FOVDownBtn = createButton("FOV  -2%  ➖", 10)
+    FOVDownBtn.MouseButton1Click:Connect(function()
+        State.fovPercent = State.fovPercent - 2
+        applyFOV()
+        updateFOVLabel()
+    end)
+
+    -- Reset FOV
+    local FOVResetBtn = createButton("Reset FOV 🔄", 11)
+    FOVResetBtn.MouseButton1Click:Connect(function()
+        State.fovPercent = 0
+        applyFOV()
+        updateFOVLabel()
+    end)
+
+    -- Cerrar
+    CloseButton.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+        if State.stopFly then State.stopFly() end
+
+        local EmojiGui = Instance.new("ScreenGui")
+        EmojiGui.Name = "LeonEmoji"
+        EmojiGui.ResetOnSpawn = false
+        EmojiGui.Parent = game.CoreGui
+
+        local Emoji = Instance.new("TextLabel")
+        Emoji.Size = UDim2.new(0, 60, 0, 60)
+        Emoji.Position = UDim2.new(0.05, 0, 0.5, 0)
+        Emoji.BackgroundTransparency = 1
+        Emoji.Text = "🦁"
+        Emoji.TextScaled = true
+        Emoji.Font = Enum.Font.GothamBold
+        Emoji.Parent = EmojiGui
+
+        local tween = TweenService:Create(
+            Emoji,
+            TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {Position = UDim2.new(0.05, 0, 0.55, 0)}
+        )
+        tween:Play()
+
+        local EmojiBtn = Instance.new("TextButton")
+        EmojiBtn.Size = UDim2.new(1, 0, 1, 0)
+        EmojiBtn.BackgroundTransparency = 1
+        EmojiBtn.Text = ""
+        EmojiBtn.Parent = Emoji
+
+        EmojiBtn.MouseButton1Click:Connect(function()
+            EmojiGui:Destroy()
+            createMenu()
+        end)
+    end)
+end
+
+-- ═══════════════════════════════════════
+-- INF JUMP
+-- ═══════════════════════════════════════
+if not State.jumpConn then
+    State.jumpConn = UserInputService.JumpRequest:Connect(function()
+        if State.infJumpEnabled then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChildOfClass("Humanoid") then
+                char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════
+-- NOCLIP
+-- ═══════════════════════════════════════
+if not State.noclipConn then
+    State.noclipConn = RunService.Stepped:Connect(function()
+        if State.noclipEnabled and LocalPlayer.Character then
+            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════
+-- AIMBOT SUAVE + AUTO SHOT
+-- ═══════════════════════════════════════
+if not State.aimConn then
+    State.aimConn = RunService.RenderStepped:Connect(function(dt)
+        if State.aimbotEnabled then
+            local target = getClosestAnimalHead()
+            if target then
+                local myPos = Camera.CFrame.Position
+                local aimCF = CFrame.new(myPos, target.Position)
+                Camera.CFrame = Camera.CFrame:Lerp(aimCF, State.aimbotSmooth)
+            end
+        end
+
+        if State.autoShotEnabled then
+            local target = getClosestAnimalHead()
+            if target then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+
+                local char = LocalPlayer.Character
+                if char then
+                    local tool = char:FindFirstChildWhichIsA("Tool")
+                    if tool then
+                        if not tool.Enabled then tool.Enabled = true end
+                        tool:Activate()
+                    end
+                end
+
+                pcall(function()
+                    local VirtualUser = game:GetService("VirtualUser")
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton1(Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2))
+                end)
+            end
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════
+-- SPEED al respawnear
+-- ═══════════════════════════════════════
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(1)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and State.speedEnabled then
+        hum.WalkSpeed = State.speedValue
+    end
+end)
+
+-- ═══════════════════════════════════════
+-- FLY
+-- ═══════════════════════════════════════
+local flyConnection, bodyVelocity, bodyGyro
+
+local function startFly()
+    if flyConnection then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.Parent = hrp
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bodyGyro.P = 9e4
+    bodyGyro.CFrame = hrp.CFrame
+    bodyGyro.Parent = hrp
+
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not State.flyEnabled then return end
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.new(0, 0, 0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0, 1, 0) end
+
+        if moveDir.Magnitude > 0 then
+            bodyVelocity.Velocity = moveDir.Unit * State.flySpeed
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+        bodyGyro.CFrame = cam.CFrame
+    end)
+end
+
+local function stopFly()
+    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+    if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+end
+
+State.toggleFly = function()
+    if State.flyEnabled then startFly() else stopFly() end
+end
+State.stopFly = stopFly
+
+-- ═══════════════════════════════════════
+-- CREAR MENÚ
+-- ═══════════════════════════════════════
+createMenu()
+
+if State.shaderEnabled then enablePinkShaders() end
+
+pcall(function()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "🦁 Le
